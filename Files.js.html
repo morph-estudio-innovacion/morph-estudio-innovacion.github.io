@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Files.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: Files.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Busca en la carpeta indicada y devuelve un archivo
+ *  si inStr se encuentra en el nombre del archivo
+ * @param folderID {Str} ID de la carpeta.
+ * @param inStr {Str} Texto contenido en el nombre del archivo.
+ * @param notInStr {Str} Texto NO contenido en el nombre del archivo.
+ * @return {Object} Archivo de Drive.
+ */
+function filesGetIfInStr(folderID, inStr, notInStr) {
+  if (folderID)
+  {
+    const folder = DriveApp.getFolderById(folderID);
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      file = files.next();
+      var name = file.getName();
+      if (name.search(inStr) != -1 &amp;&amp; 
+        (!notInStr || name.search(notInStr) == -1))
+          return (file);
+    }
+  }
+  Logger.log('No se ha conseguido el archivo:\n&lt;' + inStr + '>');
+}
+
+/**
+ * Convierte un .XLSX en Sheets y lo guarda en la carpeta indicada.
+ * @param file {Object} Archivo .XLSX.
+ * @param intoFolderID {Str} ID del archivo.
+ * @return {Object} Archivo Sheet.
+ */
+function xlsxToSheet(file, intoFolderID) {
+  if (file.getName().search('.xlsx') == -1)
+    return (null);
+  var blob = file.getBlob();
+  var newFile = {
+    title : file.getName().replace('.xlsx', ''),
+    parents: [{id : intoFolderID}],
+    mimeType : MimeType.GOOGLE_SHEETS
+  };
+  file = Drive.Files.insert(newFile, blob, {
+    convert: true
+  });
+}
+
+/**
+ * Verifica que existan los archivo XLSX y Sheets
+ *  para obtener imagenes y nomenclaturas de componentes.
+ * En caso de no existir los Sheets, convertirá los XLSX.
+ * @param folderID {Str} ID de la carpeta.
+ */
+function getComponentsFromXLSX(folderID) {
+  const folder = DriveApp.getFolderById(folderID);
+  var files = folder.getFilesByType(MimeType.MICROSOFT_EXCEL);
+  while (files.hasNext())
+  {
+    xlsxDoc = files.next();
+    var sheetName = xlsxDoc.getName().replace('.xlsx', '');
+    var sheetDoc = getFileIfInStr(folderID, sheetName, '.xlsx');
+    if (!sheetDoc)
+    {
+      xlsxToSheet(xlsxDoc, folderID);
+      sheetDoc = getFileIfInStr(folderID, sheetName, '.xlsx');
+      if (!sheetDoc)
+        return (null);
+    }
+  Logger.log('Obteniendo imagenes de: ' + xlsxDoc.getName());
+  getComponentsImgs(folderID, xlsxDoc.getId(), sheetDoc.getId());
+  }
+}
+
+/**
+ * Una función poco precisa para obtener el ID de un archivo de Drive.
+ * @param url {Str} URL de archivo Drive.
+ */
+function idFromURL(url) {
+  var split = url.split("/");
+  for (var i = 0; i &lt; split.length; i++)
+    if (split[i] == "d")
+      return (split[i + 1]);
+}
+
+/**
+ * Busca en la carpeta de informes el Cuadro de Superficies.
+ * @param proy_id {Str} ID del proyecto.
+ * @param strInName {Str} Texto contenido en el nombre del archivo.
+ * @return {Object} Archivo de Drive.
+ */
+function getProyFile(proy_id, strInName) {
+  return (getFileIfInStr(getProyVal(proy_id, "Carpeta_Informes"), strInName));
+}
+
+/**
+ * Modifica los nombres dentro de la carpeta indicada.
+ * @param folderID {Str} ID de la carpeta en la que se cambiarán los nombres de archivos.
+ * @param namesOBJ {Object} Diccionario de la forma namesOBJ["OldName"] = "NewName".
+ */
+function renameFilesInFolder(folderId, namesObj) {
+  const folder = DriveApp.getFolderById(folderId);
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    var fileName = file.getName();
+    if (namesObj.hasOwnProperty(fileName))
+    {
+      Logger.log('Renombrando: ' + fileName + ' a ' + namesObj[fileName]);
+      file.setName(namesObj[fileName]);
+    }
+  }
+}
+
+/**
+ * Crea un diccionario con los ID de los archivos en una carpeta.
+ * @param folderID {Str} ID de la carpeta.
+ * @return {Object} Diccionario de la forma: filesDicc[fileName.xxx] = fileID.
+ */
+function folderFilesIdDicc (folderId) {
+  var filesDicc = {};
+  const folder = DriveApp.getFolderById(folderId);
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    filesDicc[file.getName()] = file.getId();
+  }
+  return (filesDicc);
+}
+
+/**
+ * Revisa la carpeta proporcionada y 'elimina' (establece el archivo en papelera) los archivos que contengan la extensión en su nombre.
+ * @param folderID {Str} ID de la carpeta.
+ * @param extension {Str} Extensión que tendrán los archivos que serán eliminados.
+ */
+function delFilesByExt(folderId, extension) {
+  const folder = DriveApp.getFolderById(folderId);
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    if (file.getName().includes(extension))
+      file.setTrashed(true);
+  }
+}
+
+/**
+ * Obtiene las imagenes de un XLSX y las extrae a la carpeta indicada.
+ * @param folderID {Str} ID de la carpeta.
+ * @param xlsxSheetID {Str} ID del archivo .XLSX.
+ * @return {Array} Array de relaciones columna, imagen.  
+ */
+function getImagesFromXLSX(folderID, xlsxSheetId) {
+  const carpeta = DriveApp.getFolderById(folderID);
+  const url = "https://docs.google.com/spreadsheets/export?exportFormat=xlsx&amp;id=" + xlsxSheetId;
+  const blob = UrlFetchApp.fetch(url, {headers: {authorization: `Bearer ${ScriptApp.getOAuthToken()}`}}).getBlob().setContentType(MimeType.ZIP);
+  const xlsx = Utilities.unzip(blob);
+  var mapedArray = null;
+  xlsx.forEach(b => {
+    var string = b.getDataAsString();
+    if (string.search("spreadsheetDrawing") != -1)
+    {
+      var matching = string.match(/(col>[0-9]+&lt;)?([0-9]+.png)?/g);
+      var filteredArray = matching.filter(function(item) {
+        return item !== '';
+      });
+      mapedArray = filteredArray.map(item => {
+        return (parseInt(item.replace('col>', '').replace('&lt;', '').replace('.png', '')));
+      });
+    }
+    const name = b.getName().match(/xl\/media\/(.+)/);
+    if (name) carpeta.createFile(b.setName(name[1]));
+  });
+  return (mapedArray);
+}
+
+/**
+ * Esta función conecta con la hoja exportada de imagenes del ArchiCAD
+ *  y obtiene las imagenes incrustadas en las celdas, las guarda en una carpeta
+ *  y posteriormente renombra las imágenes con las celdas de la hoja que las contiene.
+ */
+function getComponentsImgs(folderId, xlsxSheetId, spreadsheetId) {
+  // Obtiene las imagenes de los componentes del xlsx
+  var mapIdx = getImagesFromXLSX(folderId, xlsxSheetId);
+
+  // Obtiene los nombres de los componentes
+  var sheetDoc = SpreadsheetApp.openById(spreadsheetId);
+  // var sheet = sheetDoc.getSheetByName("MUROS");
+  var sheet = sheetDoc.getSheets()[0];
+  var tableVals = sheet.getDataRange().getValues();
+  var names = tableVals[3];
+  names.shift();
+  var namesObj = {};
+  for (var i = 0; i &lt; mapIdx.length; i += 2)
+    namesObj['image' + (mapIdx[i + 1]) + '.png'] = names[mapIdx[i] - 1] + '.png';
+
+  // Cambia los nombres de las imagenes obtenidas del xlsx
+  renameFilesInFolder(folderId, namesObj);
+}
+
+/**
+ * Obtiene las carpetas compartidas del Drive.
+ */
+function sharedFolders(folderName) {
+  var fSheet = bdd.doc.getSheetByName("Carpetas");
+  var sharedDrives = Drive.Drives.list({maxResults: 30, pageToken: null});
+  let proyFolderList = [];
+  sharedDrives.items.forEach(folder => {
+    if (folderName &amp;&amp; !folder.name.search(folderName))
+      return(Drive.Drives.get(folder.id));
+    if (!folder.name.search(/P[0-9]+/i))
+      proyFolderList.push([folder.name, folder.id]);
+  });
+  fSheet.getRange(2, 1, proyFolderList.length, proyFolderList[0].length).setValues(proyFolderList);
+  return (null);
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#bsTextInBrakets">bsTextInBrakets</a></li><li><a href="global.html#bsaddRecord">bsaddRecord</a></li><li><a href="global.html#bsgetCellIdxByRef">bsgetCellIdxByRef</a></li><li><a href="global.html#bsgetColFromRef">bsgetColFromRef</a></li><li><a href="global.html#bsgetRowRefs">bsgetRowRefs</a></li><li><a href="global.html#bsgetValfromRef">bsgetValfromRef</a></li><li><a href="global.html#bstableNamefromRef">bstableNamefromRef</a></li><li><a href="global.html#copyObjAtts">copyObjAtts</a></li><li><a href="global.html#delFilesByExt">delFilesByExt</a></li><li><a href="global.html#filesGetIfInStr">filesGetIfInStr</a></li><li><a href="global.html#folderFilesIdDicc">folderFilesIdDicc</a></li><li><a href="global.html#getComponentsFromXLSX">getComponentsFromXLSX</a></li><li><a href="global.html#getComponentsImgs">getComponentsImgs</a></li><li><a href="global.html#getImagesFromXLSX">getImagesFromXLSX</a></li><li><a href="global.html#getProyFile">getProyFile</a></li><li><a href="global.html#getRelativeDate">getRelativeDate</a></li><li><a href="global.html#groupTableBy">groupTableBy</a></li><li><a href="global.html#idFromURL">idFromURL</a></li><li><a href="global.html#isNumeric">isNumeric</a></li><li><a href="global.html#newEventCalendar">newEventCalendar</a></li><li><a href="global.html#newEventCalendarApi">newEventCalendarApi</a></li><li><a href="global.html#print2DArrayAsTable">print2DArrayAsTable</a></li><li><a href="global.html#printAttributes">printAttributes</a></li><li><a href="global.html#printMap">printMap</a></li><li><a href="global.html#printObjProps">printObjProps</a></li><li><a href="global.html#printObjPropsAndSubs">printObjPropsAndSubs</a></li><li><a href="global.html#remapColsDicc">remapColsDicc</a></li><li><a href="global.html#renameFilesInFolder">renameFilesInFolder</a></li><li><a href="global.html#sharedFolders">sharedFolders</a></li><li><a href="global.html#sheetDeleteRowsIfVals">sheetDeleteRowsIfVals</a></li><li><a href="global.html#sortTableBy">sortTableBy</a></li><li><a href="global.html#subTable">subTable</a></li><li><a href="global.html#tableColUniqueVals">tableColUniqueVals</a></li><li><a href="global.html#tableColsIdx">tableColsIdx</a></li><li><a href="global.html#tableCopy">tableCopy</a></li><li><a href="global.html#tableFilter">tableFilter</a></li><li><a href="global.html#tableRemap">tableRemap</a></li><li><a href="global.html#tableRowsIdx">tableRowsIdx</a></li><li><a href="global.html#tableToDic">tableToDic</a></li><li><a href="global.html#tableToString">tableToString</a></li><li><a href="global.html#toInt">toInt</a></li><li><a href="global.html#xlsxToSheet">xlsxToSheet</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Fri Sep 01 2023 14:11:01 GMT+0200 (hora de verano de Europa central)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

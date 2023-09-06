@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Tables.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: Tables.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Crea y devuelve un objeto con los indices de las columnas como propiedades.
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param titlesRow {Int} Posición de la fila que contiene los títulos.
+ * @return {Object} Diccionario Key = "ColName", Val = ColIndex.
+ */
+function tableColsIdx(tableVals, titlesRow) {
+  var colIdxByName = new Object();
+  if (typeof(titlesRow) != 'undefined')
+    var colNames = tableVals[titlesRow];
+  else
+    var colNames = tableVals[0];
+  for (var i = 0; i &lt; colNames.length; i++)
+    colIdxByName[colNames[i]] = i;
+  return (colIdxByName);
+}
+
+/**
+ * Crea y devuelve un objeto con los indices de las filas como propiedades.
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param titlesRow {Int} Posición de la columna que contiene los títulos.
+ * @return {Object} Diccionario Key = "RowName", Val = RowIndex.
+ */
+function tableRowsIdx(tableVals, titlesCol)
+{
+  var rowIdxByName = new Object();
+  if (typeof(titlesCol) != 'undefined')
+    var col = titlesCol;
+  else
+    var col = 0;
+  for (var i = 0; i &lt; tableVals.length; i++)
+    rowIdxByName[tableVals[i][col]] = i;
+  return (rowIdxByName);
+}
+
+/**
+ * Copia una tabla.
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @return {2DArray} Copia de la tabla.
+ */
+function tableCopy(tableVals) {
+  if (!tableVals)
+    return (null);
+  var copy = [];
+  tableVals.forEach(row => copy.push([...row]));
+  return (copy);
+}
+
+/**
+ * Elimina las filas de una tabla si en las
+ *  columnas indicadas se cumplen los valores indicados.
+ * @param sheet {Sheet} Hoja SpreadSheetApp.SheetType.
+ * @param cols {Array} Array con columnas ejm [1, 4, 5, ...].
+ * @param vals {Array} Array con valores a comparar ["Texto1", Valor1, Fecha1, ...].
+ */
+function sheetDeleteRowsIfVals(sheet, cols, vals) {
+  var table = sheet;
+  for (var i = table.length - 1; i > 1; i--)
+  {
+    var apply = true;
+    for (var j = 0; j &lt; cols.length; j++)
+      if (table[i][cols[j] - 1] != vals[j])
+        apply = false;
+    var k = 0;
+    while (apply &amp;&amp; i - k++ > 2)
+      for (var j = 0; j &lt; cols.length; j++)
+        if (table[i - k][cols[j] - 1] != vals[j])
+          apply = false;
+    if (k > 1)
+    {
+      sheet.deleteRows(i - k + 2, k);
+      i = i - k + 2;
+      k = 0;
+    }
+  }
+}
+
+/**
+ * Las celdas númericas las transforma en string.
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @return {Bool} Devuelve verdadero si la tabla existe.
+ */
+function tableToString(tableVals) {
+  if (tableVals === null)
+    return (false);
+  for (var i = 0; i &lt; tableVals.length; i++)
+    for (var j = 0; j &lt; tableVals[0].length; j++)
+      if (typeof (tableVals[i][j]) == 'number')
+        tableVals[i][j] = tableVals[i][j].toString();
+  return (true);
+}
+
+/**
+ * Devuelve una tabla dentro de otra.
+ * @param rawTable {2DArray} Datos de la hoja Sheet.
+ * @param ri {Int} Indice inicial de la fila a copiar.
+ * @param rf {Int} Indice final de la fila a copiar.
+ * @param ci {Int} Indice inicial de la columna a copiar.
+ * @param cf {Int} Indice final de la columna a copiar.
+ * @return {2DArray} Tabla contenida dentro de RawTable.
+ */
+function subTable(rawTable, ri, rf, ci, cf)
+{
+  let table = [];
+  let row = [];
+  for (var i = ri; i &lt;= rf; i++)
+  {
+    for (var j = ci; j &lt;= cf; j++)
+      if (typeof(rawTable[i][j]) == "number")
+        row.push(rawTable[i][j]);
+      else
+        row.push(rawTable[i][j]);
+    table.push(row);
+    row = [];
+  }
+  return (table);
+}
+
+/**
+ * Obtiene todos los valores unicos
+ *  de la columna indicada de una tabla.
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param colRef {Str} String con referencia a la celda de la forma '[ColName]'
+ * @return {Array} Array con los valores únicos de una columna.
+ */
+function tableColUniqueVals(tableVals, colRef) {
+  var distinct = [];
+  if (colRef.search(/\[[\s\S]\]/) == -1)
+  {
+    var colIdx = tableColsIdx(tableVals);
+    var colName = bsTextInBrakets(colRef);
+    if (!colIdx.hasOwnProperty(colName))
+      return (null);
+    j = colIdx[colName];
+    distinct.push(tableVals[1][j]);
+    for (var i = 2; i &lt; tableVals.length; i++)
+      if (distinct.indexOf(tableVals[i][j]) == -1)
+        distinct.push(tableVals[i][j]);
+  }
+  return (distinct);
+}
+
+/**
+ * Genera un diccionario a partir de una tabla cuyas
+ *  llaves serán los valores de la columna indicada.
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param keyRow {Int} Indice de la columna que determinará las llaves.
+ * @return {Object} Diccionario con la columna keyRow como llaves.
+ */
+function tableToDic(tableVals, keyRow) {
+  tableDic = {};
+  tableVals.forEach(row => {
+    var component = row[keyRow];
+    tableDic[component] = {};
+      row.forEach((colVal, index) => {
+        tableDic[component][tableVals[0][index]] = colVal;
+    });
+  });
+  return (tableDic);
+}
+
+/**
+ * Ordena una tabla según las columnas indicadas.
+ * @param tableVals {2DArray} Datos de la hoja Sheet debe contener títulos en la fila 0.
+ * @param columns {Str} Texto con las columnas separadas por comas. ('[ColName A], [ColName B], ...').
+ * @return {2DArray} Devuelve la tabla luego de ser ordenada por las columnas indicadas.
+ */
+function sortTableBy(tableVals, columns) {
+  columns = columns.split(',').map(item => {return (bsTextInBrakets(item).trim());});
+  cols = tableColsIdx(tableVals);
+  var list = [];
+  for (var i = 1; i &lt; tableVals.length; i++)
+  {
+    var text = '';
+    columns.forEach(column => text = text + tableVals[i][cols[column]] + ' ');
+    list.push(text + ' | ' + i);
+  }
+  list = list.sort();
+  var orderedTable = [tableVals[0]];
+  list.forEach(row => {
+    var part = row.split(' | ');
+    orderedTable.push(tableVals[parseInt(part[part.length - 1])]);
+  });
+  return (orderedTable);
+}
+
+/**
+ * Agrupa una tabla según los valores únicos de las columnas dadas.
+ * Devuelve un objeto cuyas propiedades serán los valores únicos de las columnas.
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param colsToGroup {Str} Nombre de columnas para usar de grupos de la forma: "[ColA], [ColC], [ColN]".
+ * @return {Object} Objeto con subtablas accesibles de la forma: ValACN = tableGrp[ColA][ColC][ColN].
+ */
+function groupTableBy(tableVals, colsToGroup) {
+  var tableGrp = {};
+  var tableVals = sortTableBy(tableVals, colsToGroup);
+  var groups = colsToGroup.split(',');
+  var groupVals = tableColUniqueVals(tableVals, groups[0]);
+  groupVals.forEach(groupItem => {
+    if (groups.length > 1)
+    {
+      var remainCols = groups[1];
+      for (var i = 2; i &lt; groups.length; i++)
+        remainCols = remainCols + ',' + groups[i];
+      tableGrp[groupItem] = groupTableBy(tableFilter(tableVals, groups[0] + '="' + groupItem + '"'), remainCols);
+    }
+    else
+      tableGrp[groupItem] = tableFilter(tableVals, groups[0] + '="' + groupItem + '"');
+  });
+  return (tableGrp);
+}
+
+/**
+ * Reemplaza las condiciones 'and', '=', '&lt;>' y 'or'
+ *  reemplaza las referencias [ColRef]
+ *  y evalúa las condiciones para cada fila de la tabla dada.  
+ * A ser optimizada la forma de filtrar
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param conditions {Str} Texto con comparaciones.
+ * @return {2DArray} Nueva tabla con datos filtrados.
+ */
+function tableFilter(tableVals, conditions) {
+  if (!tableVals)
+    return (null);
+  var newTable = [];
+  newTable.push(tableVals[0]);
+  conditions = conditions
+    .replaceAll(/ and /gi, " &amp;&amp; ")
+    .replaceAll(/\=/gi, "==")
+    .replaceAll(/\&lt;\>/gi, "!=")
+    .replaceAll(/ or /gi, " || ");
+  for (var i = 1; i &lt; tableVals.length; i++)
+  {
+    var text = conditions;
+    var matches = text.match(/\[[a-záéíóú0-9]+\]/gi);
+    matches.forEach(match => {
+      var refVal = bsgetRowRefs(tableVals, i, match);
+      if (refVal != 'undefined')
+        if (isNumeric(refVal))
+          text = text.replaceAll(match, refVal);
+        else
+          text = text.replaceAll(match, '"' + refVal + '"');
+    });
+    // text = idsToOutputs(text, '', '');
+    text = text.replaceAll(/\n?\t?\v?\f?/g, '');
+    if (eval(text))
+      newTable.push(tableVals[i]);
+  }
+  return (newTable);
+}
+
+/**
+ * La función recibe dos listas y devuelve un diccionario
+ *  donde cada elemento de la primera lista tendrá:
+ *    Los indices de los elementos de la segunda en la primera.
+ *    Las relaciones de items indicadas en un str.
+ * 
+ * @param list1 {Array}
+ * @param list2 {Array}
+ * @param relations {Str} (opcional) String de relaciones separadas por comas,
+ *  del lado izquierdo un item de list1 y,
+ *  del lado derecho un item de list2.
+ *  de la forma: "[list1 ItemA] = [list2 ItemB] , [list1 ItemB] = [list2 ItemX] , ..."
+ * @return {Object} Diccionario Key = List1Item , Value = List2ItemIndex.
+ */
+function remapColsDicc(list1, list2, relations) {
+  const dicc = {};
+  list1 = list1.map(item => item.trim().toLowerCase());
+  list2 = list2.map(item => item.trim().toLowerCase());
+  list1.forEach((item, index) => {
+      dicc[item] = [index, list2.indexOf(item)];
+  });
+
+  if (typeof(relations) != 'string' || relations == '')
+    return (dicc);
+  relations = getInQuoteTexts(relations).split(',');
+  relations.forEach(parameter => {
+    var part = parameter.split('=').map(item => item.trim().toLowerCase());
+    var item1 = (part[0].search(/\[[\s\S]+\]/i) != -1 ? bsTextInBrakets(part[0]) : part[0]);
+    var item2 = (part[1].search(/\[[\s\S]+\]/i) != -1 ? bsTextInBrakets(part[1]) : part[1]);
+    dicc[item1] = [
+        (isNumeric(item1) ? getOutputByID(item1) : list1.indexOf(item1)),
+        (isNumeric(item2) ? getOutputByID(item2) : list2.indexOf(item2)),
+      ];
+  });
+  return (dicc);
+}
+
+/**
+ * Establece las dimensiones de fromTable a las de toTable, haciendo correspondencia
+ *  de las columnas cuyo nombre coincida.
+ * @param toTable {2DArray} Tabla de valores objetivo.
+ * @param fromTable {2DArray} Tabla de valores origen.
+ * @param relations {Str} (opcional) Cadena de texto con relaciones separadas por comas,
+ *  del lado izquierdo una columna de toTable y,
+ *  del lado derecho una columna de fromTable.
+ *  de la forma: "[toTable ColA] = [fromTable ColB] , [toTable ColB] = [fromTable ColX] , ..."
+ */
+function tableRemap(toTable, fromTable, relations) {
+  var colsDicc = remapColsDicc(toTable[0], fromTable[0], relations);
+  for (colMap in colsDicc)
+    if (colsDicc[colMap][0] == -1 || colsDicc[colMap][1] == -1)
+      delete colsDicc[colMap];
+
+  var data = [];
+  data.push(toTable[0]);
+  for (var i = 1; i &lt; fromTable.length; i++)
+  {
+    var dataRow = Array.from({ length: toTable[0].length }).map(item => item = '');
+    for (cols in colsDicc)
+      if (isNumeric(colsDicc[cols][1]))
+        dataRow[colsDicc[cols][0]] = fromTable[i][colsDicc[cols][1]];
+      else
+        dataRow[colsDicc[cols][0]] = colsDicc[cols][1];
+    data.push(dataRow);
+  }
+  return (data);
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#bsTextInBrakets">bsTextInBrakets</a></li><li><a href="global.html#bsaddRecord">bsaddRecord</a></li><li><a href="global.html#bsgetCellIdxByRef">bsgetCellIdxByRef</a></li><li><a href="global.html#bsgetColFromRef">bsgetColFromRef</a></li><li><a href="global.html#bsgetRowRefs">bsgetRowRefs</a></li><li><a href="global.html#bsgetValfromRef">bsgetValfromRef</a></li><li><a href="global.html#bstableNamefromRef">bstableNamefromRef</a></li><li><a href="global.html#copyObjAtts">copyObjAtts</a></li><li><a href="global.html#delFilesByExt">delFilesByExt</a></li><li><a href="global.html#filesGetIfInStr">filesGetIfInStr</a></li><li><a href="global.html#folderFilesIdDicc">folderFilesIdDicc</a></li><li><a href="global.html#getComponentsFromXLSX">getComponentsFromXLSX</a></li><li><a href="global.html#getComponentsImgs">getComponentsImgs</a></li><li><a href="global.html#getImagesFromXLSX">getImagesFromXLSX</a></li><li><a href="global.html#getProyFile">getProyFile</a></li><li><a href="global.html#getRelativeDate">getRelativeDate</a></li><li><a href="global.html#groupTableBy">groupTableBy</a></li><li><a href="global.html#idFromURL">idFromURL</a></li><li><a href="global.html#isNumeric">isNumeric</a></li><li><a href="global.html#newEventCalendar">newEventCalendar</a></li><li><a href="global.html#newEventCalendarApi">newEventCalendarApi</a></li><li><a href="global.html#print2DArrayAsTable">print2DArrayAsTable</a></li><li><a href="global.html#printAttributes">printAttributes</a></li><li><a href="global.html#printMap">printMap</a></li><li><a href="global.html#printObjProps">printObjProps</a></li><li><a href="global.html#printObjPropsAndSubs">printObjPropsAndSubs</a></li><li><a href="global.html#remapColsDicc">remapColsDicc</a></li><li><a href="global.html#renameFilesInFolder">renameFilesInFolder</a></li><li><a href="global.html#sharedFolders">sharedFolders</a></li><li><a href="global.html#sheetDeleteRowsIfVals">sheetDeleteRowsIfVals</a></li><li><a href="global.html#sortTableBy">sortTableBy</a></li><li><a href="global.html#subTable">subTable</a></li><li><a href="global.html#tableColUniqueVals">tableColUniqueVals</a></li><li><a href="global.html#tableColsIdx">tableColsIdx</a></li><li><a href="global.html#tableCopy">tableCopy</a></li><li><a href="global.html#tableFilter">tableFilter</a></li><li><a href="global.html#tableRemap">tableRemap</a></li><li><a href="global.html#tableRowsIdx">tableRowsIdx</a></li><li><a href="global.html#tableToDic">tableToDic</a></li><li><a href="global.html#tableToString">tableToString</a></li><li><a href="global.html#toInt">toInt</a></li><li><a href="global.html#xlsxToSheet">xlsxToSheet</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Fri Sep 01 2023 14:11:01 GMT+0200 (hora de verano de Europa central)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

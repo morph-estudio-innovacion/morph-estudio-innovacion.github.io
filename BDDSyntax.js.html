@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: BDDSyntax.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: BDDSyntax.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Obtiene el texto entre brackets [].
+ * @param ref {Str} Texto con referencia '[Text]'
+ * @return {Str} Texto contenido entre brackets.
+ */
+function bsTextInBrakets (ref) {
+  var regex = /\[[a-z0-9\_áéíóú\s]+\]/i;
+  var brackets = ref.toString().match(regex)[0];
+  return (brackets.substring(1, brackets.length - 1));
+}
+
+/**
+ * Obtiene el texto entre brackets [].
+ * @param cellRef {Str} Texto con referencia '[Text]'
+ */
+function bstableNamefromRef(cellRef) {
+  var regex = /^[a-z0-9\_áéíóú]+/i;
+  return (cellRef.match(regex)[0]);
+}
+
+function bscolNamefromRef(cellRef) {
+  var regex = /[a-z0-9áéíóú]\[[a-z0-9áéíóú]+\]/i;
+  var match = cellRef.match(regex)[0];
+  return (match.substring(2, match.length  - 1));
+}
+
+function bsregNamefromRef(cellRef) {
+  var regex = /\]\[[a-z0-9\sáéíóú]+\]$/i;
+  var match = cellRef.match(regex)[0];
+  return (match.substring(2, match.length  - 1)); 
+}
+
+/**
+ * Añade un registro a la tabla indicada, estableciendo los valores de las columnas desde las referencias.
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param references {Str} Texto con referencias a las columnas de la forma: "[ColA] = Val1, [ColB] = Val2, [ColN] = Valn"
+ */
+function bsaddRecord(tableVals, references) {
+  var cols = tableColsIdx(tableVals);
+  var newRecord = Array.from({ length: tableVals[0].length });
+  var refs = references.split(',');
+  refs.forEach(ref => {
+    var part = ref.split('=');
+    newRecord[cols[bsTextInBrakets(part[0].trim())]] = part[1];
+  });
+  tableVals.push(newRecord);
+  return (tableVals);
+}
+
+/**
+ * De una tabla dada obtiene el registro [Registro] de la columna [Columna] a partir de un string con arreglo bidireccional
+ *  de la forma Tabla[Columna][Registro]
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param cellRef {Str} Texto de forma: Tabla[Columna][Registro].
+ */
+function bsgetValfromRef(tableVals, cellRef) {
+  if (tableVals == null)
+    return (null);
+  var value = null;
+  var cols = tableColsIdx(tableVals);
+  var colName = bsColNamefromRef(cellRef);
+  var reg = bsRegNamefromRef(cellRef);
+  for (var i = 0; i &lt; tableVals.length; i++)
+    if (tableVals[i][0].toString() == reg.toString())
+      value = tableVals[i][cols[colName]];
+  return (value);
+}
+
+/**
+ * Devuelve una lista con los elementos de la columna Tabla[Columna] a partir de un string
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param cellRef {Str} Texto de forma: Tabla[Columna][Registro].
+ */
+function bsgetColFromRef(tableVals, cellRef) {
+  var colName = bsColNamefromRef(cellRef);
+  var cols = tableColsIdx(tableVals);
+  let colRef = [];
+  for (var i = 0; i &lt; tableVals.length; i++)
+    colRef.push(tableVals[i][cols[colName]]);
+  return (colRef);
+}
+
+/**
+ * Obtiene los valores de otras columnas [Columna] de la misma fila a partir de un string.
+ * @param tableVals {2DArray} Datos de la hoja Sheet.
+ * @param row {int} indice de la fila modificada.
+ * @param text {Str} Referencia de la forma: "[ColName]"
+ */
+function bsgetRowRefs(tableVals, rowNumber, text) {
+  if (tableVals == null || rowNumber &lt; 0 || rowNumber >= tableVals.length || text == "")
+    return (null);
+  var colRefs = text.match(/\[(.*?)\]/g);
+  if (colRefs != null)
+    colRefs.forEach(colRef => {
+      /**var colName = colRef.substring(1, colRef.length - 1)
+      text = text.replaceAll(colRef, tableVals[rowNumber][Col.Answers[colName] - 1])*/
+      var colNames = tableColsIdx(tableVals);
+      text = text.replaceAll(colRef, tableVals[rowNumber][colNames[bsTextInBrakets(text)]]);
+      if (text == 'undefined')
+        Logger.log('La columna no se ha conseguido');
+    });
+  return (text);
+}
+
+/**
+ * A partir de un documento y un arreglo bidireccional, se obtiene:
+ * sheet, tableVals, row, col
+ */
+function bsgetCellIdxByRef(doc, cellRef) {
+  if (doc == null)
+    return (null);
+  var sheet = doc.getSheetByName(bsTableNamefromRef(cellRef))
+  if (sheet == null)
+    return (null);
+  var table = sheet.getDataRange().getValues();
+  if (table == null)
+    return (null);
+  var cols = tableColsIdx(table);
+  var colName = bsColNamefromRef(cellRef);
+  var reg = bsbRegNamefromRef(cellRef);
+  var cell = null;
+  for (var i = 0; i &lt; table.length; i++)
+    if (table[i][0].toString() == reg.toString())
+    {
+      var cell = new Object();
+      cell['sheet'] = sheet;
+      cell['tableVals'] = table;
+      cell['row'] = i + 1;
+      cell['col'] = cols[colName] + 1;
+    }
+  return (cell);
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#bsTextInBrakets">bsTextInBrakets</a></li><li><a href="global.html#bsaddRecord">bsaddRecord</a></li><li><a href="global.html#bsgetCellIdxByRef">bsgetCellIdxByRef</a></li><li><a href="global.html#bsgetColFromRef">bsgetColFromRef</a></li><li><a href="global.html#bsgetRowRefs">bsgetRowRefs</a></li><li><a href="global.html#bsgetValfromRef">bsgetValfromRef</a></li><li><a href="global.html#bstableNamefromRef">bstableNamefromRef</a></li><li><a href="global.html#copyObjAtts">copyObjAtts</a></li><li><a href="global.html#delFilesByExt">delFilesByExt</a></li><li><a href="global.html#filesGetIfInStr">filesGetIfInStr</a></li><li><a href="global.html#folderFilesIdDicc">folderFilesIdDicc</a></li><li><a href="global.html#getComponentsFromXLSX">getComponentsFromXLSX</a></li><li><a href="global.html#getComponentsImgs">getComponentsImgs</a></li><li><a href="global.html#getImagesFromXLSX">getImagesFromXLSX</a></li><li><a href="global.html#getProyFile">getProyFile</a></li><li><a href="global.html#getRelativeDate">getRelativeDate</a></li><li><a href="global.html#groupTableBy">groupTableBy</a></li><li><a href="global.html#idFromURL">idFromURL</a></li><li><a href="global.html#isNumeric">isNumeric</a></li><li><a href="global.html#newEventCalendar">newEventCalendar</a></li><li><a href="global.html#newEventCalendarApi">newEventCalendarApi</a></li><li><a href="global.html#print2DArrayAsTable">print2DArrayAsTable</a></li><li><a href="global.html#printAttributes">printAttributes</a></li><li><a href="global.html#printMap">printMap</a></li><li><a href="global.html#printObjProps">printObjProps</a></li><li><a href="global.html#printObjPropsAndSubs">printObjPropsAndSubs</a></li><li><a href="global.html#remapColsDicc">remapColsDicc</a></li><li><a href="global.html#renameFilesInFolder">renameFilesInFolder</a></li><li><a href="global.html#sharedFolders">sharedFolders</a></li><li><a href="global.html#sheetDeleteRowsIfVals">sheetDeleteRowsIfVals</a></li><li><a href="global.html#sortTableBy">sortTableBy</a></li><li><a href="global.html#subTable">subTable</a></li><li><a href="global.html#tableColUniqueVals">tableColUniqueVals</a></li><li><a href="global.html#tableColsIdx">tableColsIdx</a></li><li><a href="global.html#tableCopy">tableCopy</a></li><li><a href="global.html#tableFilter">tableFilter</a></li><li><a href="global.html#tableRemap">tableRemap</a></li><li><a href="global.html#tableRowsIdx">tableRowsIdx</a></li><li><a href="global.html#tableToDic">tableToDic</a></li><li><a href="global.html#tableToString">tableToString</a></li><li><a href="global.html#toInt">toInt</a></li><li><a href="global.html#xlsxToSheet">xlsxToSheet</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Fri Sep 01 2023 14:11:01 GMT+0200 (hora de verano de Europa central)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
